@@ -1,0 +1,19 @@
+[ClassVersion("1.0.0.0"), FriendlyName("SPSearchQueryRule")]
+class MSFT_SPSearchQueryRule : OMI_BaseResource
+{
+    [Key, Description("The name of the query rule")] String Name;
+    [Key, Description("The name of the search service app that this query rule exists within")] String ServiceAppName;
+    [Required, Description("The display name of the query rule") String Name;
+    [Write, Description("The context of the query rule")] String Context;
+    [Write, Description("Condition names for the query rule")] String QueryConditionNames[];
+    [Write, Description("Conditions for the query rule")] String QueryConditions[];
+    [Write, Description("QueryTemplate for the query rule")] String QueryTemplate;
+    [Write, Description("Should the result be shown on top")] Boolean AlwaysShow;
+    [Write, Description("RowLimit for the results")] Int RowLimit;
+    [Write, Description("Title url for the results, in case of result blocks")] String  ResultTitleUrl;
+    [Write, Description("GroupTemplateId of the query rule")] String GroupTemplateId;
+    [Write, Description("BestBetsActionUrl")] String BestBetsActionUrl;
+    [Write, Description("Result type of the query rule"), ValueMap{"Change ranked results by changing the query", "Promoted Results", "Result Blocks"}, Values{"Change ranked results by changing the query", "Promoted Results", "Result Blocks"}] String ResultType;
+    [Write, Description("Present if the source should exist, absent if it should not"), ValueMap{"Present","Absent"}, Values{"Present","Absent"}] string Ensure;
+    [Write, Description("POWERSHELL 4 ONLY: The account to run this resource as, use PsDscRunAsCredential if using PowerShell 5"), EmbeddedInstance("MSFT_Credential")] String InstallAccount;
+};
