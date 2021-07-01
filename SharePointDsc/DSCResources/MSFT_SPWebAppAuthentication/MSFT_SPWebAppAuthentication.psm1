@@ -32,6 +32,26 @@ function Get-TargetResource
         $Custom,
 
         [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $DefaultSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $IntranetSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $InternetSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $ExtranetSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $CustomSettings,
+
+        [Parameter()]
         [System.Management.Automation.PSCredential]
         $InstallAccount
     )
@@ -39,21 +59,31 @@ function Get-TargetResource
     Write-Verbose -Message "Getting web application authentication for '$WebAppUrl'"
 
     $nullreturn = @{
-        WebAppUrl = $WebAppUrl
-        Default   = $null
-        Intranet  = $null
-        Internet  = $null
-        Extranet  = $null
-        Custom    = $null
+        WebAppUrl        = $WebAppUrl
+        Default          = $null
+        Intranet         = $null
+        Internet         = $null
+        Extranet         = $null
+        Custom           = $null
+        DefaultSettings  = $null
+        IntranetSettings = $null
+        InternetSettings = $null
+        ExtranetSettings = $null
+        CustomSettings   = $null
     }
 
     if ($PSBoundParameters.ContainsKey("Default") -eq $false -and `
             $PSBoundParameters.ContainsKey("Intranet") -eq $false -and `
             $PSBoundParameters.ContainsKey("Internet") -eq $false -and `
             $PSBoundParameters.ContainsKey("Extranet") -eq $false -and `
-            $PSBoundParameters.ContainsKey("Custom") -eq $false)
+            $PSBoundParameters.ContainsKey("Custom") -eq $false -and `
+            $PSBoundParameters.ContainsKey("DefaultSettings") -eq $false -and `
+            $PSBoundParameters.ContainsKey("IntranetSettings") -eq $false -and `
+            $PSBoundParameters.ContainsKey("InternetSettings") -eq $false -and `
+            $PSBoundParameters.ContainsKey("ExtranetSettings") -eq $false -and `
+            $PSBoundParameters.ContainsKey("CustomSettings") -eq $false)
     {
-        Write-Verbose -Message "You have to specify at least one zone."
+        Write-Verbose -Message "You have to specify at least one parameter."
         return $nullreturn
     }
 
@@ -110,66 +140,56 @@ function Get-TargetResource
         $wa = Get-SPWebApplication -Identity $params.WebAppUrl -ErrorAction SilentlyContinue
         if ($null -eq $wa)
         {
+            Write-Verbose -Message "Specified web application not found!"
             return @{
-                WebAppUrl = $params.WebAppUrl
-                Default   = $null
-                Intranet  = $null
-                Internet  = $null
-                Extranet  = $null
-                Custom    = $null
+                WebAppUrl        = $params.WebAppUrl
+                Default          = $null
+                Intranet         = $null
+                Internet         = $null
+                Extranet         = $null
+                Custom           = $null
+                DefaultSettings  = $null
+                IntranetSettings = $null
+                InternetSettings = $null
+                ExtranetSettings = $null
+                CustomSettings   = $null
             }
         }
 
         $zones = $wa.IisSettings.Keys
-        $default = @()
-        $intranet = @()
-        $internet = @()
-        $extranet = @()
-        $custom = @()
+        $zoneConfig = @{}
+        $zoneSettings = @{}
 
         foreach ($zone in $zones)
         {
+            $zoneName = $zone.ToString()
+            $zoneConfig.$zoneName = @()
+            $zoneSettings.$zoneName = ""
+
+            Write-Verbose -Message "Getting Zone Settings for zone '$zone'"
+            $settings = @{
+                AnonymousAuthentication    = $wa.IisSettings[$zone].AllowAnonymous
+                CustomSignInPage           = $wa.IisSettings[$zone].ClaimsAuthenticationRedirectionUrl
+                EnableClientIntegration    = $wa.IisSettings[$zone].EnableClientIntegration
+                RequireUseRemoteInterfaces = $wa.IisSettings[$zone].ClientObjectModelRequiresUseRemoteAPIsPermission
+            }
+
+            $zoneSettings.$zoneName = $settings
+
+            Write-Verbose -Message "Getting Authentication Methods for zone '$zone'"
             $authProviders = Get-SPAuthenticationProvider -WebApplication $params.WebAppUrl -Zone $zone
             if ($null -eq $authProviders)
             {
-                $localAuthMode = "Classic"
-                $windowsAuthMethod = $null
-                $basicAuth = $null
-                $authenticationProvider = $null
-                $roleProvider = $null
-                $membershipProvider = $null
-
                 $provider = @{
-                    AuthenticationMethod   = $localAuthMode
-                    WindowsAuthMethod      = $windowsAuthMethod
-                    UseBasicAuth           = $basicAuth
-                    AuthenticationProvider = $authenticationProvider
-                    MembershipProvider     = $membershipProvider
-                    RoleProvider           = $roleProvider
+                    AuthenticationMethod   = "Classic"
+                    WindowsAuthMethod      = $null
+                    UseBasicAuth           = $null
+                    AuthenticationProvider = $null
+                    MembershipProvider     = $null
+                    RoleProvider           = $null
                 }
-                switch ($zone)
-                {
-                    "Default"
-                    {
-                        $default += $provider
-                    }
-                    "Intranet"
-                    {
-                        $intranet += $provider
-                    }
-                    "Internet"
-                    {
-                        $internet += $provider
-                    }
-                    "Extranet"
-                    {
-                        $extranet += $provider
-                    }
-                    "Custom"
-                    {
-                        $custom += $provider
-                    }
-                }
+
+                $zoneConfig.$zoneName += $provider
             }
             else
             {
@@ -223,40 +243,24 @@ function Get-TargetResource
                         MembershipProvider     = $membershipProvider
                         RoleProvider           = $roleProvider
                     }
-                    switch ($zone)
-                    {
-                        "Default"
-                        {
-                            $default += $provider
-                        }
-                        "Intranet"
-                        {
-                            $intranet += $provider
-                        }
-                        "Internet"
-                        {
-                            $internet += $provider
-                        }
-                        "Extranet"
-                        {
-                            $extranet += $provider
-                        }
-                        "Custom"
-                        {
-                            $custom += $provider
-                        }
-                    }
+
+                    $zoneConfig.$zoneName += $provider
                 }
             }
         }
 
         return @{
-            WebAppUrl = $params.WebAppUrl
-            Default   = $default
-            Intranet  = $intranet
-            Internet  = $internet
-            Extranet  = $extranet
-            Custom    = $custom
+            WebAppUrl        = $params.WebAppUrl
+            Default          = $zoneConfig.Default
+            Intranet         = $zoneConfig.Intranet
+            Internet         = $zoneConfig.Internet
+            Extranet         = $zoneConfig.Extranet
+            Custom           = $zoneConfig.Custom
+            DefaultSettings  = $zoneSettings.Default
+            IntranetSettings = $zoneSettings.Intranet
+            InternetSettings = $zoneSettings.Internet
+            ExtranetSettings = $zoneSettings.Extranet
+            CustomSettings   = $zoneSettings.Custom
         }
     }
     return $result
@@ -292,6 +296,26 @@ function Set-TargetResource
         $Custom,
 
         [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $DefaultSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $IntranetSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $InternetSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $ExtranetSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $CustomSettings,
+
+        [Parameter()]
         [System.Management.Automation.PSCredential]
         $InstallAccount
     )
@@ -303,9 +327,14 @@ function Set-TargetResource
             $PSBoundParameters.ContainsKey("Intranet") -eq $false -and `
             $PSBoundParameters.ContainsKey("Internet") -eq $false -and `
             $PSBoundParameters.ContainsKey("Extranet") -eq $false -and `
-            $PSBoundParameters.ContainsKey("Custom") -eq $false)
+            $PSBoundParameters.ContainsKey("Custom") -eq $false -and `
+            $PSBoundParameters.ContainsKey("DefaultSettings") -eq $false -and `
+            $PSBoundParameters.ContainsKey("IntranetSettings") -eq $false -and `
+            $PSBoundParameters.ContainsKey("InternetSettings") -eq $false -and `
+            $PSBoundParameters.ContainsKey("ExtranetSettings") -eq $false -and `
+            $PSBoundParameters.ContainsKey("CustomSettings") -eq $false)
     {
-        $message = "You have to specify at least one zone."
+        $message = "You have to specify at least one parameter."
         Add-SPDscEvent -Message $message `
             -EntryType 'Error' `
             -EventID 100 `
@@ -402,21 +431,38 @@ function Set-TargetResource
 
     if ($Default)
     {
-        # Test is current config matches desired config
+        # Test if current config matches desired config
+        Write-Verbose -Message "Testing Authentication for Default zone"
         $result = Test-ZoneConfiguration -DesiredConfig $Default `
             -CurrentConfig $CurrentValues.Default
 
         # If that is the case, set desired config.
         if ($result -eq $false)
         {
+            Write-Verbose -Message "Correcting Authentication for Default zone"
             Set-ZoneConfiguration -WebAppUrl $WebAppUrl -Zone "Default" -DesiredConfig $Default
+        }
+    }
+
+    if ($DefaultSettings)
+    {
+        # Test if current config matches desired config
+        Write-Verbose -Message "Testing Settings for Default zone"
+        $result = Test-ZoneSettings -DesiredSettings $DefaultSettings `
+            -CurrentSettings $CurrentValues.DefaultSettings
+
+        # If that is the case, set desired config.
+        if ($result -eq $false)
+        {
+            Write-Verbose -Message "Correcting Settings for Default zone"
+            Set-ZoneSettings -WebAppUrl $WebAppUrl -Zone "Default" -DesiredSettings $DefaultSettings
         }
     }
 
     if ($Intranet)
     {
         # Check if specified zone exists
-        if ($CurrentValues.ContainsKey("Intranet") -eq $false)
+        if ($null -eq $CurrentValues.Intranet)
         {
             $message = "Specified zone Intranet does not exist"
             Add-SPDscEvent -Message $message `
@@ -426,21 +472,49 @@ function Set-TargetResource
             throw $message
         }
 
-        # Test is current config matches desired config
+        # Test if current config matches desired config
+        Write-Verbose -Message "Testing Authentication for Intranet zone"
         $result = Test-ZoneConfiguration -DesiredConfig $Intranet `
             -CurrentConfig $CurrentValues.Intranet
 
         # If that is the case, set desired config.
         if ($result -eq $false)
         {
+            Write-Verbose -Message "Correcting Authentication for Intranet zone"
             Set-ZoneConfiguration -WebAppUrl $WebAppUrl -Zone "Intranet" -DesiredConfig $Intranet
+        }
+    }
+
+    if ($IntranetSettings)
+    {
+        # Check if specified zone exists
+        if ($null -eq $CurrentValues.IntranetSettings)
+        {
+            $message = "Specified zone Intranet does not exist"
+            Add-SPDscEvent -Message $message `
+                -EntryType 'Error' `
+                -EventID 100 `
+                -Source $MyInvocation.MyCommand.Source
+            throw $message
+        }
+
+        # Test if current config matches desired config
+        Write-Verbose -Message "Testing Settings for Intranet zone"
+        $result = Test-ZoneSettings -DesiredSettings $IntranetSettings `
+            -CurrentSettings $CurrentValues.IntranetSettings
+
+        # If that is the case, set desired config.
+        if ($result -eq $false)
+        {
+            Write-Verbose -Message "Correcting Settings for Intranet zone"
+            Set-ZoneSettings -WebAppUrl $WebAppUrl -Zone "Intranet" -DesiredSettings $IntranetSettings
         }
     }
 
     if ($Internet)
     {
         # Check if specified zone exists
-        if ($CurrentValues.ContainsKey("Internet") -eq $false)
+        if ($null -eq $CurrentValues.Internet)
         {
             $message = "Specified zone Internet does not exist"
             Add-SPDscEvent -Message $message `
@@ -450,21 +524,49 @@ function Set-TargetResource
             throw $message
         }
 
-        # Test is current config matches desired config
+        # Test if current config matches desired config
+        Write-Verbose -Message "Testing Authentication for Internet zone"
         $result = Test-ZoneConfiguration -DesiredConfig $Internet `
             -CurrentConfig $CurrentValues.Internet
 
         # If that is the case, set desired config.
         if ($result -eq $false)
         {
+            Write-Verbose -Message "Correcting Authentication for Internet zone"
             Set-ZoneConfiguration -WebAppUrl $WebAppUrl -Zone "Internet" -DesiredConfig $Internet
+        }
+    }
+
+    if ($InternetSettings)
+    {
+        # Check if specified zone exists
+        if ($null -eq $CurrentValues.InternetSettings)
+        {
+            $message = "Specified zone Internet does not exist"
+            Add-SPDscEvent -Message $message `
+                -EntryType 'Error' `
+                -EventID 100 `
+                -Source $MyInvocation.MyCommand.Source
+            throw $message
+        }
+
+        # Test if current config matches desired config
+        Write-Verbose -Message "Testing Settings for Internet zone"
+        $result = Test-ZoneSettings -DesiredSettings $InternetSettings `
+            -CurrentSettings $CurrentValues.InternetSettings
+
+        # If that is the case, set desired config.
+        if ($result -eq $false)
+        {
+            Write-Verbose -Message "Correcting Settings for Internet zone"
+            Set-ZoneSettings -WebAppUrl $WebAppUrl -Zone "Internet" -DesiredSettings $InternetSettings
         }
     }
 
     if ($Extranet)
     {
         # Check if specified zone exists
-        if ($CurrentValues.ContainsKey("Extranet") -eq $false)
+        if ($null -eq $CurrentValues.Extranet)
         {
             $message = "Specified zone Extranet does not exist"
             Add-SPDscEvent -Message $message `
@@ -474,21 +576,49 @@ function Set-TargetResource
             throw $message
         }
 
-        # Test is current config matches desired config
+        # Test if current config matches desired config
+        Write-Verbose -Message "Testing Authentication for Extranet zone"
         $result = Test-ZoneConfiguration -DesiredConfig $Extranet `
             -CurrentConfig $CurrentValues.Extranet
 
         # If that is the case, set desired config.
         if ($result -eq $false)
         {
+            Write-Verbose -Message "Correcting Authentication for Extranet zone"
             Set-ZoneConfiguration -WebAppUrl $WebAppUrl -Zone "Extranet" -DesiredConfig $Extranet
+        }
+    }
+
+    if ($ExtranetSettings)
+    {
+        # Check if specified zone exists
+        if ($null -eq $CurrentValues.ExtranetSettings)
+        {
+            $message = "Specified zone Extranet does not exist"
+            Add-SPDscEvent -Message $message `
+                -EntryType 'Error' `
+                -EventID 100 `
+                -Source $MyInvocation.MyCommand.Source
+            throw $message
+        }
+
+        # Test if current config matches desired config
+        Write-Verbose -Message "Testing Settings for Extranet zone"
+        $result = Test-ZoneSettings -DesiredSettings $ExtranetSettings `
+            -CurrentSettings $CurrentValues.ExtranetSettings
+
+        # If that is the case, set desired config.
+        if ($result -eq $false)
+        {
+            Write-Verbose -Message "Correcting Settings for Extranet zone"
+            Set-ZoneSettings -WebAppUrl $WebAppUrl -Zone "Extranet" -DesiredSettings $ExtranetSettings
         }
     }
 
     if ($Custom)
     {
         # Check if specified zone exists
-        if ($CurrentValues.ContainsKey("Custom") -eq $false)
+        if ($null -eq $CurrentValues.Custom)
         {
             $message = "Specified zone Custom does not exist"
             Add-SPDscEvent -Message $message `
@@ -498,14 +628,42 @@ function Set-TargetResource
             throw $message
         }
 
-        # Test is current config matches desired config
+        # Test if current config matches desired config
+        Write-Verbose -Message "Testing Authentication for Custom zone"
         $result = Test-ZoneConfiguration -DesiredConfig $Custom `
             -CurrentConfig $CurrentValues.Custom
 
         # If that is the case, set desired config.
         if ($result -eq $false)
         {
+            Write-Verbose -Message "Correcting Authentication for Custom zone"
             Set-ZoneConfiguration -WebAppUrl $WebAppUrl -Zone "Custom" -DesiredConfig $Custom
+        }
+    }
+
+    if ($CustomSettings)
+    {
+        # Check if specified zone exists
+        if ($null -eq $CurrentValues.CustomSettings)
+        {
+            $message = "Specified zone Custom does not exist"
+            Add-SPDscEvent -Message $message `
+                -EntryType 'Error' `
+                -EventID 100 `
+                -Source $MyInvocation.MyCommand.Source
+            throw $message
+        }
+
+        # Test if current config matches desired config
+        Write-Verbose -Message "Testing Settings for Custom zone"
+        $result = Test-ZoneSettings -DesiredSettings $CustomSettings `
+            -CurrentSettings $CurrentValues.CustomSettings
+
+        # If that is the case, set desired config.
+        if ($result -eq $false)
+        {
+            Write-Verbose -Message "Correcting Settings for Custom zone"
+            Set-ZoneSettings -WebAppUrl $WebAppUrl -Zone "Custom" -DesiredSettings $CustomSettings
         }
     }
 }
@@ -541,6 +699,26 @@ function Test-TargetResource
         $Custom,
 
         [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $DefaultSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $IntranetSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $InternetSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $ExtranetSettings,
+
+        [Parameter()]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $CustomSettings,
+
+        [Parameter()]
         [System.Management.Automation.PSCredential]
         $InstallAccount
     )
@@ -556,7 +734,12 @@ function Test-TargetResource
             $null -eq $CurrentValues.Intranet -and `
             $null -eq $CurrentValues.Internet -and `
             $null -eq $CurrentValues.Extranet -and `
-            $null -eq $CurrentValues.Custom)
+            $null -eq $CurrentValues.Custom -and `
+            $null -eq $CurrentValues.DefaultSettings -and `
+            $null -eq $CurrentValues.IntranetSettings -and `
+            $null -eq $CurrentValues.InternetSettings -and `
+            $null -eq $CurrentValues.ExtranetSettings -and `
+            $null -eq $CurrentValues.CustomSettings)
     {
         Write-Verbose -Message "Test-TargetResource returned false"
         return $false
@@ -564,12 +747,29 @@ function Test-TargetResource
 
     if ($Default)
     {
+        Write-Verbose -Message "Testing Authentication for Default zone"
         $result = Test-ZoneConfiguration -DesiredConfig $Default `
             -CurrentConfig $CurrentValues.Default `
             -ZoneName "Default"
 
         if ($result -eq $false)
         {
+            Write-Verbose -Message "Parameter Default does not match Desired values"
+            Write-Verbose -Message "Test-TargetResource returned false"
+            return $false
+        }
+    }
+
+    if ($DefaultSettings)
+    {
+        Write-Verbose -Message "Testing Settings for Default zone"
+        $result = Test-ZoneSettings -DesiredSettings $DefaultSettings `
+            -CurrentSettings $CurrentValues.DefaultSettings `
+            -ZoneName "Default"
+
+        if ($result -eq $false)
+        {
+            Write-Verbose -Message "Parameter DefaultSettings does not match Desired values"
             Write-Verbose -Message "Test-TargetResource returned false"
             return $false
         }
@@ -577,7 +777,8 @@ function Test-TargetResource
 
     if ($Intranet)
     {
-        if ($CurrentValues.ContainsKey("Intranet") -eq $false)
+        Write-Verbose -Message "Testing Authentication for Intranet zone"
+        if ($null -eq $CurrentValues.Intranet)
         {
             $message = "Specified zone Intranet does not exist"
             Add-SPDscEvent -Message $message `
@@ -593,6 +794,32 @@ function Test-TargetResource
 
         if ($result -eq $false)
         {
+            Write-Verbose -Message "Parameter Intranet does not match Desired values"
+            Write-Verbose -Message "Test-TargetResource returned false"
+            return $false
+        }
+    }
+
+    if ($IntranetSettings)
+    {
+        Write-Verbose -Message "Testing Settings for Intranet zone"
+        if ($null -eq $CurrentValues.IntranetSettings)
+        {
+            $message = "Specified zone Intranet does not exist"
+            Add-SPDscEvent -Message $message `
+                -EntryType 'Error' `
+                -EventID 100 `
+                -Source $MyInvocation.MyCommand.Source
+            throw $message
+        }
+
+        $result = Test-ZoneSettings -DesiredSettings $IntranetSettings `
+            -CurrentSettings $CurrentValues.IntranetSettings `
+            -ZoneName "Intranet"
+
+        if ($result -eq $false)
+        {
+            Write-Verbose -Message "Parameter IntranetSettings does not match Desired values"
             Write-Verbose -Message "Test-TargetResource returned false"
             return $false
         }
@@ -600,7 +827,8 @@ function Test-TargetResource
 
     if ($Internet)
     {
-        if ($CurrentValues.ContainsKey("Internet") -eq $false)
+        Write-Verbose -Message "Testing Authentication for Internet zone"
+        if ($null -eq $CurrentValues.Internet)
         {
             $message = "Specified zone Internet does not exist"
             Add-SPDscEvent -Message $message `
@@ -616,6 +844,32 @@ function Test-TargetResource
 
         if ($result -eq $false)
         {
+            Write-Verbose -Message "Parameter Internet does not match Desired values"
+            Write-Verbose -Message "Test-TargetResource returned false"
+            return $false
+        }
+    }
+
+    if ($InternetSettings)
+    {
+        Write-Verbose -Message "Testing Settings for Internet zone"
+        if ($null -eq $CurrentValues.InternetSettings)
+        {
+            $message = "Specified zone Internet does not exist"
+            Add-SPDscEvent -Message $message `
+                -EntryType 'Error' `
+                -EventID 100 `
+                -Source $MyInvocation.MyCommand.Source
+            throw $message
+        }
+
+        $result = Test-ZoneSettings -DesiredSettings $InternetSettings `
+            -CurrentSettings $CurrentValues.InternetSettings `
+            -ZoneName "Internet"
+
+        if ($result -eq $false)
+        {
+            Write-Verbose -Message "Parameter InternetSettings does not match Desired values"
             Write-Verbose -Message "Test-TargetResource returned false"
             return $false
         }
@@ -623,7 +877,8 @@ function Test-TargetResource
 
     if ($Extranet)
     {
-        if ($CurrentValues.ContainsKey("Extranet") -eq $false)
+        Write-Verbose -Message "Testing Authentication for Extranet zone"
+        if ($null -eq $CurrentValues.Extranet)
         {
             $message = "Specified zone Extranet does not exist"
             Add-SPDscEvent -Message $message `
@@ -639,6 +894,32 @@ function Test-TargetResource
 
         if ($result -eq $false)
         {
+            Write-Verbose -Message "Parameter Extranet does not match Desired values"
+            Write-Verbose -Message "Test-TargetResource returned false"
+            return $false
+        }
+    }
+
+    if ($ExtranetSettings)
+    {
+        Write-Verbose -Message "Testing Settings for Extranet zone"
+        if ($null -eq $CurrentValues.ExtranetSettings)
+        {
+            $message = "Specified zone Extranet does not exist"
+            Add-SPDscEvent -Message $message `
+                -EntryType 'Error' `
+                -EventID 100 `
+                -Source $MyInvocation.MyCommand.Source
+            throw $message
+        }
+
+        $result = Test-ZoneSettings -DesiredSettings $ExtranetSettings `
+            -CurrentSettings $CurrentValues.ExtranetSettings `
+            -ZoneName "Extranet"
+
+        if ($result -eq $false)
+        {
+            Write-Verbose -Message "Parameter ExtranetSettings does not match Desired values"
             Write-Verbose -Message "Test-TargetResource returned false"
             return $false
         }
@@ -646,7 +927,8 @@ function Test-TargetResource
 
     if ($Custom)
     {
-        if ($CurrentValues.ContainsKey("Custom") -eq $false)
+        Write-Verbose -Message "Testing Authentication for Custom zone"
+        if ($null -eq $CurrentValues.Custom)
         {
             $message = "Specified zone Custom does not exist"
             Add-SPDscEvent -Message $message `
@@ -663,6 +945,33 @@ function Test-TargetResource
 
         if ($result -eq $false)
         {
+            Write-Verbose -Message "Parameter Custom does not match Desired values"
+            Write-Verbose -Message "Test-TargetResource returned false"
+            return $false
+        }
+    }
+
+    if ($CustomSettings)
+    {
+        Write-Verbose -Message "Testing Settings for Custom zone"
+        if ($null -eq $CurrentValues.CustomSettings)
+        {
+            $message = "Specified zone Custom does not exist"
+            Add-SPDscEvent -Message $message `
+                -EntryType 'Error' `
+                -EventID 100 `
+                -Source $MyInvocation.MyCommand.Source
+            throw $message
+            Write-Verbose -Message "Test-TargetResource returned false"
+        }
+
+        $result = Test-ZoneSettings -DesiredSettings $CustomSettings `
+            -CurrentSettings $CurrentValues.CustomSettings `
+            -ZoneName "Custom"
+
+        if ($result -eq $false)
+        {
+            Write-Verbose -Message "Parameter CustomSettings does not match Desired values"
             Write-Verbose -Message "Test-TargetResource returned false"
             return $false
         }
@@ -1029,6 +1338,79 @@ function Set-ZoneConfiguration()
     }
 }
 
+function Set-ZoneSettings()
+{
+    param (
+        [Parameter(Mandatory = $true)]
+        [System.String]
+        $WebAppUrl,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Default", "Intranet", "Internet", "Extranet", "Custom")]
+        [System.String]
+        $Zone,
+
+        [Parameter(Mandatory = $true)]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $DesiredSettings
+    )
+
+    Invoke-SPDscCommand -Credential $InstallAccount `
+        -Arguments $PSBoundParameters `
+        -ScriptBlock {
+        $params = $args[0]
+
+        $wa = Get-SPWebApplication -Identity $params.WebAppUrl
+
+        #Anonymous Authentication: True/False
+        $prop = $params.DesiredSettings.CimInstanceProperties | Where-Object -FilterScript {
+            $_.Name -eq "AnonymousAuthentication"
+        }
+        if ($null -ne $prop.Value)
+        {
+            Write-Verbose -Message ("Updating AnonymousAuthentication to " + `
+                    "$($params.DesiredSettings.AnonymousAuthentication) for zone $($params.Zone)")
+            $wa.IisSettings[$params.Zone].AllowAnonymous = $params.DesiredSettings.AnonymousAuthentication
+        }
+
+        #Custom Sign In Page (Empty string for default, URL for custom)
+        $prop = $params.DesiredSettings.CimInstanceProperties | Where-Object -FilterScript {
+            $_.Name -eq "CustomSignInPage"
+        }
+        if ($null -ne $prop.Value)
+        {
+            Write-Verbose -Message ("Updating CustomSignInPage to " + `
+                    "$($params.DesiredSettings.CustomSignInPage) for zone $($params.Zone)")
+            $wa.IisSettings[$params.Zone].ClaimsAuthenticationRedirectionUrl = $params.DesiredSettings.CustomSignInPage
+        }
+
+        #Require Use Remote Interfaces permission: True/False
+        $prop = $params.DesiredSettings.CimInstanceProperties | Where-Object -FilterScript {
+            $_.Name -eq "RequireUseRemoteInterfaces"
+        }
+        if ($null -ne $prop.Value)
+        {
+            Write-Verbose -Message ("Updating RequireUseRemoteInterfaces to " + `
+                    "$($params.DesiredSettings.RequireUseRemoteInterfaces) for zone $($params.Zone)")
+            $wa.IisSettings[$params.Zone].ClientObjectModelRequiresUseRemoteAPIsPermission = $params.DesiredSettings.RequireUseRemoteInterfaces
+        }
+
+        #Enable Client Integration
+        $prop = $params.DesiredSettings.CimInstanceProperties | Where-Object -FilterScript {
+            $_.Name -eq "EnableClientIntegration"
+        }
+        if ($null -ne $prop.Value)
+        {
+            Write-Verbose -Message ("Updating EnableClientIntegration to " + `
+                    "$($params.DesiredSettings.EnableClientIntegration) for zone $($params.Zone)")
+            $wa.IisSettings[$params.Zone].EnableClientIntegration = $params.DesiredSettings.EnableClientIntegration
+        }
+
+        Write-Verbose -Message "Committing changes to web application"
+        $wa.Update()
+    }
+}
+
 function Test-ZoneConfiguration()
 {
     param (
@@ -1238,5 +1620,113 @@ function Test-ZoneConfiguration()
             return $false
         }
     }
+    return $true
+}
+
+function Test-ZoneSettings()
+{
+    param
+    (
+        [Parameter(Mandatory = $true)]
+        [Microsoft.Management.Infrastructure.CimInstance]
+        $DesiredSettings,
+
+        [Parameter(Mandatory = $true)]
+        [System.Collections.Hashtable]
+        $CurrentSettings,
+
+        [Parameter()]
+        [System.String]
+        $ZoneName
+    )
+
+    # Testing specified configuration against configured values
+    $parametersNotInDesiredState = @()
+    $prop = $DesiredSettings.CimInstanceProperties | Where-Object -FilterScript {
+        $_.Name -eq "AnonymousAuthentication"
+    }
+    if ($null -ne $prop.Value)
+    {
+        if ($CurrentSettings.AnonymousAuthentication -ne $DesiredSettings.AnonymousAuthentication)
+        {
+            Write-Verbose "AnonymousAuthentication does not match"
+            $parametersNotInDesiredState += "AnonymousAuthentication"
+        }
+    }
+
+    $prop = $DesiredSettings.CimInstanceProperties | Where-Object -FilterScript {
+        $_.Name -eq "CustomSignInPage"
+    }
+    if ($null -ne $prop.Value)
+    {
+        if ($CurrentSettings.CustomSignInPage -ne $DesiredSettings.CustomSignInPage)
+        {
+            Write-Verbose "CustomSignInPage does not match"
+            $parametersNotInDesiredState += "CustomSignInPage"
+        }
+    }
+
+    $prop = $DesiredSettings.CimInstanceProperties | Where-Object -FilterScript {
+        $_.Name -eq "EnableClientIntegration"
+    }
+    if ($null -ne $prop.Value)
+    {
+        if ($CurrentSettings.EnableClientIntegration -ne $DesiredSettings.EnableClientIntegration)
+        {
+            Write-Verbose "EnableClientIntegration does not match"
+            $parametersNotInDesiredState += "EnableClientIntegration"
+        }
+    }
+
+    $prop = $DesiredSettings.CimInstanceProperties | Where-Object -FilterScript {
+        $_.Name -eq "RequireUseRemoteInterfaces"
+    }
+    if ($null -ne $prop.Value)
+    {
+        if ($CurrentSettings.RequireUseRemoteInterfaces -ne $DesiredSettings.RequireUseRemoteInterfaces)
+        {
+            Write-Verbose "RequireUseRemoteInterfaces does not match"
+            $parametersNotInDesiredState += "RequireUseRemoteInterfaces"
+        }
+    }
+
+    if ($parametersNotInDesiredState.Count -ne 0)
+    {
+        if ($PSBoundParameters.ContainsKey('ZoneName') -eq $true)
+        {
+            $source = $MyInvocation.MyCommand.Source
+
+            $EventMessage = "<SPDscEvent>`r`n"
+            $EventMessage += "    <ConfigurationDrift Source=`"$source`">`r`n"
+
+            $EventMessage += "        <ParametersNotInDesiredState>`r`n"
+            foreach ($parameter in $parametersNotInDesiredState)
+            {
+                $EventMessage += "            <Parameter>`r`n"
+                $EventMessage += "                <Param Name=`"$parameter`">" + $CurrentSettings.$parameter + "</Param>`r`n"
+                $EventMessage += "            </Parameter>`r`n"
+            }
+            $EventMessage += "        </ParametersNotInDesiredState>`r`n"
+            $EventMessage += "    </ConfigurationDrift>`r`n"
+            $EventMessage += "    <DesiredValues>`r`n"
+            $EventMessage += "        <Zone>`r`n"
+            $EventMessage += "            <ZoneName>$ZoneName</ZoneName>`r`n"
+            $EventMessage += "                <Parameter>`r`n"
+            foreach ($prop in $DesiredSettings.CimInstanceProperties)
+            {
+                $EventMessage += "                    <Param Name=`"$($prop.Name)`">" + $prop.Value + "</Param>`r`n"
+
+            }
+            $EventMessage += "                </Parameter>`r`n"
+            $EventMessage += "        </Zone>`r`n"
+            $EventMessage += "    </DesiredValues>`r`n"
+            $EventMessage += "</SPDscEvent>"
+
+            Add-SPDscEvent -Message $EventMessage -EntryType 'Error' -EventID 1 -Source $source
+        }
+
+        return $false
+    }
+
     return $true
 }

@@ -50,7 +50,7 @@ try
     InModuleScope -ModuleName $script:DSCResourceFullName -ScriptBlock {
         Describe -Name $Global:SPDscHelper.DescribeHeader -Fixture {
             BeforeAll {
-                Invoke-Command -Scriptblock $Global:SPDscHelper.InitializeScript -NoNewScope
+                Invoke-Command -ScriptBlock $Global:SPDscHelper.InitializeScript -NoNewScope
 
                 $testParamsNewProperty = @{
                     Name                = "WorkEmailNew"
@@ -344,7 +344,7 @@ try
                 } -ParameterFilter {
                     $TypeName -eq "Microsoft.Office.Server.UserProfiles.UserProfileManager" }
                 Mock Invoke-SPDscCommand {
-                    return Invoke-Command -Scriptblock $ScriptBlock -ArgumentList $Arguments -NoNewScope
+                    return Invoke-Command -ScriptBlock $ScriptBlock -ArgumentList $Arguments -NoNewScope
                 }
 
                 $propertyMappingItem = @{
@@ -435,15 +435,15 @@ try
                 } -ParameterFilter {
                     $TypeName -eq "Microsoft.Office.Server.UserProfiles.UserProfileConfigManager" }
 
-                $userProfileServiceValidConnection = @{
-                    Name                         = "User Profile Service Application"
-                    TypeName                     = "User Profile Service Application"
-                    ApplicationPool              = "SharePoint Service Applications"
-                    ServiceApplicationProxyGroup = "Proxy Group"
-                    ConnectionManager            = @($connection)
+                Mock -CommandName Get-SPServiceApplication {
+                    return @{
+                        Name                         = "User Profile Service Application"
+                        TypeName                     = "User Profile Service Application"
+                        ApplicationPool              = "SharePoint Service Applications"
+                        ServiceApplicationProxyGroup = "Proxy Group"
+                        ConnectionManager            = @($connection)
+                    }
                 }
-
-                Mock -CommandName Get-SPServiceApplication { return $userProfileServiceValidConnection }
 
                 function Add-SPDscEvent
                 {
@@ -468,6 +468,40 @@ try
                 }
             }
 
+            Context -Name "Same ConnectionName is specified multiple times in PropertyMappings" {
+                BeforeAll {
+                    $testParams = @{
+                        Name               = "WorkEmail"
+                        UserProfileService = "User Profile Service Application"
+                        DisplayName        = "WorkEmail"
+                        Type               = "String (Single Value)"
+                        Description        = ""
+                        PolicySetting      = "Mandatory"
+                        PrivacySetting     = "Public"
+                        PropertyMappings   = @(
+                            (New-CimInstance -ClassName MSFT_SPUserProfilePropertyMapping -ClientOnly -Property @{
+                                    ConnectionName = "contoso"
+                                    PropertyName   = "department"
+                                    Direction      = "Import"
+                                }),
+                            (New-CimInstance -ClassName MSFT_SPUserProfilePropertyMapping -ClientOnly -Property @{
+                                    ConnectionName = "contoso"
+                                    PropertyName   = "givenname"
+                                    Direction      = "Import"
+                                })
+                        )
+                    }
+                }
+
+                It "Should return Ensure = Absent" {
+                    (Get-TargetResource @testParams).Ensure | Should -Be "Absent"
+                }
+
+                It "Should throw an exception" {
+                    { Set-TargetResource @testParams } | Should -Throw "You have specified two PropertyMappings with the same ConnectionName. Make sure each PropertyMapping is using a unique ConnectionName:"
+                }
+            }
+
             Context -Name "Non-Existing User Profile Service Application" {
                 BeforeAll {
                     Mock -CommandName Get-SPServiceApplication { return $null }
@@ -487,7 +521,7 @@ try
                     $Global:SPUPGetPropertyByNameCalled = $false
                     $Global:SPUPSMappingItemCalled = $false
                     (Get-TargetResource @testParamsNewProperty).Ensure | Should -Be "Absent"
-                    Assert-MockCalled Get-SPServiceApplication -ParameterFilter { $Name -eq $testParamsNewProperty.UserProfileService }
+                    Assert-MockCalled Get-SPServiceApplication
                     $Global:SPUPGetProfileSubtypeCalled | Should -Be $true
                     $Global:SPUPGetPropertyByNameCalled | Should -Be $true
                     $Global:SPUPSMappingItemCalled | Should -Be $false
@@ -535,7 +569,7 @@ try
                     $Global:SPUPGetPropertyByNameCalled = $false
                     $Global:SPUPSMappingItemCalled = $false
                     (Get-TargetResource @testParamsNewProperty).Ensure | Should -Be "Absent"
-                    Assert-MockCalled Get-SPServiceApplication -ParameterFilter { $Name -eq $testParamsNewProperty.UserProfileService }
+                    Assert-MockCalled Get-SPServiceApplication
                     $Global:SPUPGetProfileSubtypeCalled | Should -Be $true
                     $Global:SPUPGetPropertyByNameCalled | Should -Be $true
                     $Global:SPUPSMappingItemCalled | Should -Be $false
@@ -572,7 +606,7 @@ try
                     $Global:SPUPGetPropertyByNameCalled = $false
                     $Global:SPUPSMappingItemCalled = $false
                     (Get-TargetResource @testParamsNewProperty).Ensure | Should -Be "Absent"
-                    Assert-MockCalled Get-SPServiceApplication -ParameterFilter { $Name -eq $testParamsNewProperty.UserProfileService }
+                    Assert-MockCalled Get-SPServiceApplication
                     $Global:SPUPGetProfileSubtypeCalled | Should -Be $true
                     $Global:SPUPGetPropertyByNameCalled | Should -Be $true
                     $Global:SPUPSMappingItemCalled | Should -Be $false
@@ -673,7 +707,7 @@ try
                     $Global:SPUPGetPropertyByNameCalled = $false
                     $Global:SPUPSMappingItemCalled = $false
                     (Get-TargetResource @testParamsNewProperty).Ensure | Should -Be "Absent"
-                    Assert-MockCalled Get-SPServiceApplication -ParameterFilter { $Name -eq $testParamsNewProperty.UserProfileService }
+                    Assert-MockCalled Get-SPServiceApplication
                     $Global:SPUPGetProfileSubtypeCalled | Should -Be $true
                     $Global:SPUPGetPropertyByNameCalled | Should -Be $true
                     $Global:SPUPSMappingItemCalled | Should -Be $false
@@ -712,7 +746,7 @@ try
                     $Global:SPUPGetPropertyByNameCalled = $false
                     $Global:SPUPSMappingItemCalled = $false
                     (Get-TargetResource @testParamsNewProperty).Ensure | Should -Be "Absent"
-                    Assert-MockCalled Get-SPServiceApplication -ParameterFilter { $Name -eq $testParamsNewProperty.UserProfileService }
+                    Assert-MockCalled Get-SPServiceApplication
                     $Global:SPUPGetProfileSubtypeCalled | Should -Be $true
                     $Global:SPUPGetPropertyByNameCalled | Should -Be $true
                     $Global:SPUPSMappingItemCalled | Should -Be $false
@@ -758,7 +792,7 @@ try
                     $Global:SPUPGetPropertyByNameCalled = $false
                     $Global:SPUPSMappingItemCalled = $false
                     (Get-TargetResource @testParamsNewProperty).Ensure | Should -Be "Present"
-                    Assert-MockCalled Get-SPServiceApplication -ParameterFilter { $Name -eq $testParamsUpdateProperty.UserProfileService }
+                    Assert-MockCalled Get-SPServiceApplication
                     $Global:SPUPGetProfileSubtypeCalled | Should -Be $true
                     $Global:SPUPGetPropertyByNameCalled | Should -Be $true
                     $Global:SPUPSMappingItemCalled | Should -Be $true
@@ -810,7 +844,7 @@ try
                     $Global:SPUPGetPropertyByNameCalled = $false
                     $Global:SPUPSMappingItemCalled = $false
                     (Get-TargetResource @testParamsNewProperty).Ensure | Should -Be "Present"
-                    Assert-MockCalled Get-SPServiceApplication -ParameterFilter { $Name -eq $testParamsUpdateProperty.UserProfileService }
+                    Assert-MockCalled Get-SPServiceApplication
                     $Global:SPUPGetProfileSubtypeCalled | Should -Be $true
                     $Global:SPUPGetPropertyByNameCalled | Should -Be $true
                     $Global:SPUPSMappingItemCalled | Should -Be $true
@@ -859,7 +893,7 @@ try
                     $Global:SPUPGetPropertyByNameCalled = $false
                     $Global:SPUPSMappingItemCalled = $false
                     (Get-TargetResource @testParamsNewProperty).Ensure | Should -Be "Present"
-                    Assert-MockCalled Get-SPServiceApplication -ParameterFilter { $Name -eq $testParamsUpdateProperty.UserProfileService }
+                    Assert-MockCalled Get-SPServiceApplication
                     $Global:SPUPGetProfileSubtypeCalled | Should -Be $true
                     $Global:SPUPGetPropertyByNameCalled | Should -Be $true
                     $Global:SPUPSMappingItemCalled | Should -Be $true
@@ -904,7 +938,7 @@ try
                     $Global:SPUPGetPropertyByNameCalled = $false
                     $Global:SPUPSMappingItemCalled = $false
                     (Get-TargetResource @testParamsNewProperty).Ensure | Should -Be "Present"
-                    Assert-MockCalled Get-SPServiceApplication -ParameterFilter { $Name -eq $testParamsUpdateProperty.UserProfileService }
+                    Assert-MockCalled Get-SPServiceApplication
                     $Global:SPUPGetProfileSubtypeCalled | Should -Be $true
                     $Global:SPUPGetPropertyByNameCalled | Should -Be $true
                     $Global:SPUPSMappingItemCalled | Should -Be $true

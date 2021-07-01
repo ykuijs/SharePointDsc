@@ -5,7 +5,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- SPFarm
+  - Added parameter SkipRegisterAsDistributedCacheHost
+
+### Fixed
+
+- SPInstallLanguagePack
+  - Fixed detection of Norwegian language pack
+
+## [4.7.0] - 2021-06-10
+
 ### Added
+
+- SPSearchServiceApp
+  - Added ability to correct database permissions for the farm account, to prevent issue
+    as described in the Readme of the resource
+- SPSecurityTokenServiceConfig
+  - Added support for LogonTokenCacheExpirationWindow, WindowsTokenLifetime and FormsTokenLifetime settings
+- SPService
+  - New resource
+ - SPSecurityTokenServiceConfig
+  - Added support for LogonTokenCacheExpirationWindow, WindowsTokenLifetime and FormsTokenLifetime settings
+- SPUsageDefinition
+  - New resource
+- SPUserProfileProperty
+  - Added check for unique ConnectionNames in PropertyMappings, which is required by SharePoint
+- SPWebAppAuthentication
+  - Added ability to configure generic authentication settings per zone, like allow
+    anonymous authentication or a custom signin page
+
+- SharePointDsc
+  - Fixed code coverage in pipeline
+- SPConfigWizard
+  - Fixed issue with executing PSCONFIG remotely.
+- SPFarm
+  - Fixed issue where developer dashboard could not be configured on first farm setup.
+  - Fixed issue with PSConfig in SharePoint 2019 when executed remotely
+  - Corrected issue where the setup account didn't have permissions to create the Lock
+    table in the TempDB. Updated to use a global temporary table, which users are always
+    allowed to create
+
+## [4.6.0] - 2021-04-02
+
+### Added
+
 - SharePointDsc
   - Export-SPDscDiagnosticData cmdlet to create a diagnostic package which can
     easily be shared for troubleshooting
@@ -29,8 +74,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- SPAccessServiceApp, SPAccessServices2010, SPAppManagementServiceApp, SPBCSServiceApp,
+  SPExcelServiceApp, SPMachineTranslationServiceApp, SPManagedMetadataServiceApp,
+  SPPerformancePointServiceApp, SPPowerPointAutomationServiceApp, SPProjectServerServiceApp,
+  SPPublishServiceApplication, SPSearchCrawlRule, SPSearchFileType, SPSearchServiceApp,
+  SPSecureStoreServiceApp, SPServiceAppSecurity, SPSubscriptionSettingsServiceApp,
+  SPUsageApplication, SPUserProfileProperty, SPUserProfileSection, SPUserProfileServiceApp,
+  SPUserProfileSyncConnection, SPUserProfileSyncService, SPVisioServiceApp,
+  SPWordAutomationServiceApp, SPWorkManagementServiceApp
+  - Fixed issue with the Name parameter of Get-SPServiceApplication, which is case
+    sensitive
+- SPExcelServiceApp
+  - Fixed issue where PSBoundParameters was used multiple times, but manipulated at an early
+    stage, breaking all subsequent usages
 - SPInstallLanguagePack
-  - Fixes issue in the Norwegian Language Pack detection
+  - Fixed issue in the Norwegian Language Pack detection
 - SPSearchManagedProperty
   - Fixed issue where setting Searchable=True resulted in an error
 - SPSearchResultSource
@@ -38,6 +96,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SPUserProfileServiceApp
   - Fixed issue where MySiteHostLocation was return from Get method including port number,
     which causes the Test method to fail
+- SPWebAppAuthentication
+  - Fix issue in Get method to return Null when zone does not exist. That way the Test and
+    Set method can detect a non-existent zone and throw a proper error.
 - SPWordAutomation
   - Fixed issue where the resource never went into desired state when using AddToDefault
 

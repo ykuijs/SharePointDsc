@@ -121,13 +121,39 @@ function Get-TargetResource
 
     Write-Verbose -Message "Getting user profile property $Name"
 
+    if ($PSBoundParameters.ContainsKey("PropertyMappings") -eq $true)
+    {
+        $connections = $PropertyMappings.ConnectionName
+
+        $connectionsCounts = @{}
+        $duplicates = ""
+        $connections | ForEach-Object -Process { $connectionsCounts["$_"] += 1 }
+        $connectionsCounts.Keys | Where-Object -FilterScript { $connectionsCounts["$_"] -gt 1 } | ForEach-Object -Process { $duplicates += "$_," }
+        $duplicates = $duplicates.TrimEnd(",")
+
+        if ([System.String]::IsNullOrEmpty($duplicates) -eq $false)
+        {
+            $message = ("You have specified two PropertyMappings with the same ConnectionName. " + `
+                    "Make sure each PropertyMapping is using a unique ConnectionName: $duplicate")
+            Write-Verbose -Message $message
+
+            return @{
+                Name               = $Name
+                UserProfileService = $UserProfileService
+                Ensure             = "Absent"
+            }
+        }
+    }
+
     $result = Invoke-SPDscCommand -Credential $InstallAccount `
         -Arguments $PSBoundParameters `
         -ScriptBlock {
         $params = $args[0]
 
-        $upsa = Get-SPServiceApplication -Name $params.UserProfileService `
-            -ErrorAction SilentlyContinue
+        $upsa = Get-SPServiceApplication | Where-Object -FilterScript {
+            $_.Name -eq $params.UserProfileService
+        }
+
         $nullReturn = @{
             Name               = $params.Name
             UserProfileService = $params.UserProfileService
@@ -419,6 +445,28 @@ function Set-TargetResource
 
     Write-Verbose -Message "Setting user profile property $Name"
 
+    if ($PSBoundParameters.ContainsKey("PropertyMappings") -eq $true)
+    {
+        $connections = $PropertyMappings.ConnectionName
+
+        $connectionsCounts = @{}
+        $duplicates = ""
+        $connections | ForEach-Object -Process { $connectionsCounts["$_"] += 1 }
+        $connectionsCounts.Keys | Where-Object -FilterScript { $connectionsCounts["$_"] -gt 1 } | ForEach-Object -Process { $duplicates += "$_," }
+        $duplicates = $duplicates.TrimEnd(",")
+
+        if ([System.String]::IsNullOrEmpty($duplicates) -eq $false)
+        {
+            $message = ("You have specified two PropertyMappings with the same ConnectionName. " + `
+                    "Make sure each PropertyMapping is using a unique ConnectionName: $duplicate")
+            Add-SPDscEvent -Message $message `
+                -EntryType 'Error' `
+                -EventID 100 `
+                -Source $MyInvocation.MyCommand.Source
+            throw $message
+        }
+    }
+
     $PSBoundParameters.Ensure = $Ensure
 
     Invoke-SPDscCommand -Credential $InstallAccount `
@@ -455,8 +503,9 @@ function Set-TargetResource
             throw $message
         }
 
-        $ups = Get-SPServiceApplication -Name $params.UserProfileService `
-            -ErrorAction SilentlyContinue
+        $ups = Get-SPServiceApplication | Where-Object -FilterScript {
+            $_.Name -eq $params.UserProfileService
+        }
 
         if ($null -eq $ups)
         {

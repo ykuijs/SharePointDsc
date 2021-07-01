@@ -91,6 +91,10 @@ function Get-TargetResource
         $ApplicationCredentialKey,
 
         [Parameter()]
+        [System.Boolean]
+        $SkipRegisterAsDistributedCacheHost = $true,
+
+        [Parameter()]
         [System.Management.Automation.PSCredential]
         $InstallAccount
     )
@@ -450,6 +454,10 @@ function Set-TargetResource
         $ApplicationCredentialKey,
 
         [Parameter()]
+        [System.Boolean]
+        $SkipRegisterAsDistributedCacheHost = $true,
+
+        [Parameter()]
         [System.Management.Automation.PSCredential]
         $InstallAccount
     )
@@ -466,6 +474,8 @@ function Set-TargetResource
             -Source $MyInvocation.MyCommand.Source
         throw $message
     }
+
+    $PSBoundParameters.SkipRegisterAsDistributedCacheHost = $SkipRegisterAsDistributedCacheHost
 
     if ($PSBoundParameters.ContainsKey("CentralAdministrationUrl"))
     {
@@ -828,7 +838,7 @@ function Set-TargetResource
                 DatabaseServer                     = $params.DatabaseServer
                 DatabaseName                       = $params.FarmConfigDatabaseName
                 Passphrase                         = $params.Passphrase.Password
-                SkipRegisterAsDistributedCacheHost = $true
+                SkipRegisterAsDistributedCacheHost = $params.SkipRegisterAsDistributedCacheHost
             }
 
             $supportsSettingApplicationCredentialKey = $false
@@ -1032,8 +1042,8 @@ function Set-TargetResource
             {
                 Write-Verbose -Message "The database does not exist, so create a new farm"
 
-                Write-Verbose -Message "Creating Lock database to prevent two servers creating the same farm"
-                Add-SPDscConfigDBLock -SQLServer $params.DatabaseServer `
+                Write-Verbose -Message "Creating Lock to prevent two servers creating the same farm"
+                $lockConnection = Add-SPDscConfigDBLock -SQLServer $params.DatabaseServer `
                     -Database $params.FarmConfigDatabaseName `
                     @databaseCredentialsParam
 
@@ -1063,9 +1073,10 @@ function Set-TargetResource
                 }
                 finally
                 {
-                    Write-Verbose -Message "Removing Lock database"
+                    Write-Verbose -Message "Removing Lock"
                     Remove-SPDscConfigDBLock -SQLServer $params.DatabaseServer `
                         -Database $params.FarmConfigDatabaseName `
+                        -Connection $lockConnection `
                         @databaseCredentialsParam
                 }
             }
@@ -1199,7 +1210,7 @@ function Set-TargetResource
                 Write-Verbose -Message "Updating Developer Dashboard setting"
                 $admService = Get-SPDscContentService
                 $developerDashboardSettings = $admService.DeveloperDashboardSettings
-                $developerDashboardSettings.DisplayLevel = [Microsoft.SharePoint.Administration.SPDeveloperDashboardLevel]::$params.DeveloperDashboard
+                $developerDashboardSettings.DisplayLevel = [Microsoft.SharePoint.Administration.SPDeveloperDashboardLevel]::$($params.DeveloperDashboard)
                 $developerDashboardSettings.Update()
             }
 
@@ -1304,6 +1315,10 @@ function Test-TargetResource
         [Parameter()]
         [System.Management.Automation.PSCredential]
         $ApplicationCredentialKey,
+
+        [Parameter()]
+        [System.Boolean]
+        $SkipRegisterAsDistributedCacheHost = $true,
 
         [Parameter()]
         [System.Management.Automation.PSCredential]
