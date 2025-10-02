@@ -32,7 +32,7 @@ function Invoke-TestSetup
 
     $script:testEnvironment = Initialize-TestEnvironment `
         -DSCModuleName $script:DSCModuleName `
-        -DSCResourceName $script:DSCResourceFullName `
+        -DscResourceName $script:DSCResourceFullName `
         -ResourceType 'Mof' `
         -TestType 'Unit'
 }
@@ -49,7 +49,7 @@ try
     InModuleScope -ModuleName $script:DSCResourceFullName -ScriptBlock {
         Describe -Name $Global:SPDscHelper.DescribeHeader -Fixture {
             BeforeAll {
-                Invoke-Command -ScriptBlock $Global:SPDscHelper.InitializeScript -NoNewScope
+                Invoke-Command -Scriptblock $Global:SPDscHelper.InitializeScript -NoNewScope
 
                 # Initialize tests
                 function New-SPDscMockPrereq
@@ -216,6 +216,13 @@ try
 
                 It "Should call the prerequisite installer from the set method and records the need for a reboot" {
                     Mock -CommandName Start-Process { return @{ ExitCode = 3010 } }
+
+                    Set-TargetResource @testParams
+                    Assert-MockCalled Start-Process
+                }
+
+                It "Should call the prerequisite installer from the set method, record an error and trigger a reboot for a retry" {
+                    Mock -CommandName Start-Process { return @{ ExitCode = -2147467259 } }
 
                     Set-TargetResource @testParams
                     Assert-MockCalled Start-Process
