@@ -49,3 +49,6 @@ https://docs.microsoft.com/en-us/SharePoint/install/hardware-and-software-requir
 
 SharePoint 2019:
 https://docs.microsoft.com/en-us/sharepoint/install/hardware-and-software-requirements-2019#links-to-applicable-software
+
+SharePoint Subscription:
+https://learn.microsoft.com/en-us/sharepoint/install/software-requirements-for-sharepoint-servers-for-sharepoint-server-subscription-edition
