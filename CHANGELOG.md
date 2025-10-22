@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - SPDistributedCacheClientSettings
   - Resource threw an error on SharePoint Server Subscription Edition with Build >= 16.0.18526.20080.
+- MSFT_SPInstallPrereqs
+  - Added Fix for SharePoint Desired State Configuration test for SharePoint SPSE on prerequisite MSVCRT142.
 
 ### Changed
 
