@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Resource threw an error on SharePoint Server Subscription Edition with Build >= 16.0.18526.20080.
 - SPInstallPrereqs
   - Trigger a machine reboot when the installer returns the generic error 0x80004005, to allow a retry
+  - Added Fix for SharePoint Desired State Configuration test for SharePoint SPSE on prerequisite MSVCRT142.
 
 ### Changed
 
